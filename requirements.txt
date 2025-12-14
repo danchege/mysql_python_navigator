@@ -1,0 +1,14 @@
+# MySQL Navigator - Python Requirements
+# Install with: pip install -r requirements.txt
+
+# GUI Framework (modern themed tkinter)
+ttkbootstrap==1.10.1
+
+# MySQL Database Connector
+mysql-connector-python==8.2.0
+
+# Optional: For better password handling
+cryptography==41.0.7
+
+# Optional: For enhanced dialogs
+tkinterdnd2==0.3.0
