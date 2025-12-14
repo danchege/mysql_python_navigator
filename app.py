@@ -48,6 +48,12 @@ class MySQLNavigator:
         
         tb.Label(conn_row, text="User:").pack(side=LEFT, padx=5)
         self.user_entry = tb.Entry(conn_row, width=15)
+        self.user_entry.pack(side=LEFT, padx=5)
+        
+        tb.Label(conn_row, text="Port:").pack(side=LEFT, padx=5)
+        self.port_entry = tb.Entry(conn_row, width=8)
+        self.port_entry.insert(0, "3306")
+        self.port_entry.pack(side=LEFT, padx=5)
         self.user_entry.insert(0, "root")
         self.user_entry.pack(side=LEFT, padx=5)
         
@@ -64,6 +70,7 @@ class MySQLNavigator:
         self.status_label.pack(side=LEFT, padx=10)
         
         # Theme toggle button
+        # Theme Toggle Button
         self.theme_btn = tb.Button(conn_row, text="🌙 Dark", 
                                    command=self.toggle_theme, 
                                    bootstyle="secondary-outline",
@@ -135,6 +142,15 @@ class MySQLNavigator:
                  command=self.refresh_databases, 
                  bootstyle=INFO, width=25).pack(pady=3, fill=X)
         
+        tb.Button(db_ops, text="➕ Create Database", 
+                 command=self.create_database,
+                 bootstyle=SUCCESS, width=25).pack(pady=3, fill=X)
+        
+        self.drop_db_btn = tb.Button(db_ops, text="🗑 Drop Database", 
+                 command=self.drop_database,
+                 bootstyle=DANGER, width=25, state='disabled')
+        self.drop_db_btn.pack(pady=3, fill=X)
+        
         tb.Button(db_ops, text="💾 Backup Database", 
                  command=self.backup_current_db,
                  bootstyle=PRIMARY, width=25).pack(pady=3, fill=X)
@@ -189,6 +205,69 @@ class MySQLNavigator:
         self.tree.bind('<<TreeviewSelect>>', self.on_tree_select)
         self.tree.bind('<Double-Button-1>', self.on_tree_double_click)
     
+    def list_users(self):
+        """Display a list of all MySQL users"""
+        try:
+            # Check if connected
+            if not hasattr(config, 'current_connection') or not config.current_connection.is_connected():
+                messagebox.showwarning("Not Connected", "Please connect to the database first")
+                return
+
+            # Get users using the operations module
+            users = operations.list_users()
+
+            # Create a new window
+            user_window = tb.Toplevel(self.root)
+            user_window.title("MySQL Users")
+            user_window.geometry("700x400")
+            
+            # Create a treeview to display users
+            columns = ("Username", "Host", "Has Password", "Auth Plugin")
+            tree = ttk.Treeview(user_window, columns=columns, show="headings")
+            
+            # Configure columns with appropriate widths
+            column_widths = {
+                "Username": 150, 
+                "Host": 150, 
+                "Has Password": 100, 
+                "Auth Plugin": 150
+            }
+            
+            for col in columns:
+                tree.heading(col, text=col)
+                tree.column(col, width=column_widths.get(col, 100), anchor='center')
+            
+            # Add users to the treeview
+            for user in users:
+                tree.insert("", "end", values=user)
+            
+            # Add scrollbar
+            scrollbar = ttk.Scrollbar(user_window, orient="vertical", command=tree.yview)
+            tree.configure(yscrollcommand=scrollbar.set)
+            
+            # Pack everything
+            tree.pack(side=LEFT, fill=BOTH, expand=True, padx=5, pady=5)
+            scrollbar.pack(side=RIGHT, fill=Y)
+            
+            # Add close button
+            btn_frame = tb.Frame(user_window)
+            btn_frame.pack(fill=X, pady=5)
+            
+            close_btn = tb.Button(
+                btn_frame,
+                text="Close",
+                command=user_window.destroy,
+                bootstyle="danger",
+                width=10
+            )
+            close_btn.pack(side=RIGHT, padx=10)
+            
+            # Make the window resizable
+            user_window.minsize(600, 300)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to list users: {str(e)}")
+    
     def toggle_theme(self):
         """Toggle between dark and light themes"""
         if self.current_theme == "darkly":
@@ -203,11 +282,17 @@ class MySQLNavigator:
             self.root.style.theme_use("darkly")
     
     def connect_db(self):
-        host = self.host_entry.get()
+        host = self.host_entry.get() or "localhost"
         user = self.user_entry.get()
         password = self.password_entry.get()
         
-        ok, msg = db.connect(host, user, password)
+        try:
+            port = int(self.port_entry.get() or "3306")
+        except ValueError:
+            messagebox.showerror("Error", "Port must be a number")
+            return
+        
+        ok, msg = db.connect(host, user, password, port)
         
         if ok:
             self.status_label.config(text="✓ Connected", bootstyle=SUCCESS)
@@ -217,9 +302,15 @@ class MySQLNavigator:
             self.status_label.config(text="✗ Failed", bootstyle=DANGER)
             messagebox.showerror("Connection Error", msg)
     
-    def refresh_databases(self):
-        if not config.current_connection:
+    def _check_connection(self):
+        """Helper method to check database connection"""
+        if not hasattr(config, 'current_connection') or not config.current_connection or not config.current_connection.is_connected():
             messagebox.showwarning("Warning", "Please connect to MySQL first")
+            return False
+        return True
+        
+    def refresh_databases(self):
+        if not self._check_connection():
             return
         
         # Clear existing tree
@@ -228,26 +319,33 @@ class MySQLNavigator:
         
         try:
             databases = db.list_databases()
+            non_system_dbs = []
             
             # Add databases to tree
             for db_name in databases:
-                # Skip system databases
-                if db_name in ['information_schema', 'mysql', 'performance_schema', 'sys']:
+                # Skip system databases but keep track of them
+                if db_name.lower() in ['information_schema', 'mysql', 'performance_schema', 'sys']:
                     continue
+                non_system_dbs.append(db_name)
                 
                 # Insert database with a dummy child (for expand arrow)
                 self.tree.insert('', 'end', db_name, text=f"📁 {db_name}", 
                                values=['database'], open=False)
                 self.tree.insert(db_name, 'end', text='Loading...')
             
-            messagebox.showinfo("Success", f"Found {len(databases)} databases")
+            if not non_system_dbs:
+                self.tree.insert('', 'end', text="No user databases found")
+            
+            messagebox.showinfo("Success", f"Found {len(non_system_dbs)} user databases")
         
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load databases: {str(e)}")
+            self.tree.insert('', 'end', text="Error loading databases")
     
     def on_tree_select(self, event):
         selected = self.tree.selection()
         if not selected:
+            self.drop_db_btn.config(state='disabled')
             return
         
         item = selected[0]
@@ -256,9 +354,88 @@ class MySQLNavigator:
         if parent == '':  # It's a database
             config.current_db = item
             self.selection_label.config(text=f"Selected: {item}")
+            self.drop_db_btn.config(state='normal')
         else:  # It's a table
             table_name = self.tree.item(item)['text'].replace('📄 ', '')
             self.selection_label.config(text=f"Database: {parent} | Table: {table_name}")
+    
+    def create_database(self):
+        """Show dialog to create a new database"""
+        if not self._check_connection():
+            return
+            
+        # Create dialog window
+        dialog = tb.Toplevel(self.root)
+        dialog.title("Create Database")
+        dialog.geometry("400x150")
+        dialog.resizable(False, False)
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - dialog.winfo_width()) // 2
+        y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Database name input
+        tb.Label(dialog, text="Database Name:").pack(pady=(20, 5))
+        db_name_entry = tb.Entry(dialog, width=30)
+        db_name_entry.pack(pady=5)
+        db_name_entry.focus()
+        
+        def on_create():
+            db_name = db_name_entry.get().strip()
+            if not db_name:
+                messagebox.showwarning("Warning", "Please enter a database name")
+                return
+                
+            success, message = db.create_database(db_name)
+            if success:
+                messagebox.showinfo("Success", message)
+                self.refresh_databases()
+                dialog.destroy()
+            else:
+                messagebox.showerror("Error", message)
+        
+        # Buttons
+        btn_frame = tb.Frame(dialog)
+        btn_frame.pack(pady=10)
+        
+        tb.Button(btn_frame, text="Create", 
+                 command=on_create,
+                 bootstyle=SUCCESS, width=10).pack(side=LEFT, padx=5)
+        
+        tb.Button(btn_frame, text="Cancel", 
+                 command=dialog.destroy,
+                 bootstyle=SECONDARY, width=10).pack(side=LEFT, padx=5)
+    
+    def drop_database(self):
+        """Drop the currently selected database"""
+        if not self._check_connection():
+            return
+            
+        selected = self.tree.selection()
+        if not selected:
+            return
+            
+        db_name = selected[0]
+        parent = self.tree.parent(db_name)
+        
+        # Only allow dropping databases (not tables)
+        if parent != '':
+            return
+            
+        # Confirm before dropping
+        if not messagebox.askyesno("Confirm Drop", 
+                                 f"Are you sure you want to drop database '{db_name}'?\nThis action cannot be undone!"):
+            return
+        
+        success, message = db.drop_database(db_name)
+        if success:
+            messagebox.showinfo("Success", message)
+            self.refresh_databases()
+            self.drop_db_btn.config(state='disabled')
+        else:
+            messagebox.showerror("Error", message)
     
     def on_tree_double_click(self, event):
         """Expand database to show tables"""
@@ -607,20 +784,33 @@ class MySQLNavigator:
             scrollbar = tb.Scrollbar(tree_frame)
             scrollbar.pack(side=RIGHT, fill=Y)
             
-            # Treeview
-            users_tree = ttk.Treeview(tree_frame, columns=('User', 'Host'), 
-                                     show='headings', yscrollcommand=scrollbar.set)
-            users_tree.heading('User', text='Username')
-            users_tree.heading('Host', text='Host')
-            users_tree.column('User', width=250)
-            users_tree.column('Host', width=250)
-            users_tree.pack(fill=BOTH, expand=True)
+            # Treeview with all columns
+            columns = ('username', 'host', 'has_password', 'auth_plugin')
+            users_tree = ttk.Treeview(
+                tree_frame, 
+                columns=columns, 
+                show='headings', 
+                yscrollcommand=scrollbar.set
+            )
             
+            # Configure columns
+            users_tree.heading('username', text='Username')
+            users_tree.heading('host', text='Host')
+            users_tree.heading('has_password', text='Has Password')
+            users_tree.heading('auth_plugin', text='Auth Plugin')
+            
+            # Set column widths
+            users_tree.column('username', width=150)
+            users_tree.column('host', width=150)
+            users_tree.column('has_password', width=100)
+            users_tree.column('auth_plugin', width=150)
+            
+            users_tree.pack(fill=BOTH, expand=True)
             scrollbar.config(command=users_tree.yview)
             
-            # Populate users
-            for user, host in users:
-                users_tree.insert('', 'end', values=(user, host))
+            # Populate users with all columns
+            for user_data in users:
+                users_tree.insert('', 'end', values=user_data)
             
             tb.Label(users_window, 
                     text=f"Total users: {len(users)}", 
