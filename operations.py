@@ -1,8 +1,10 @@
 import config
-from tkinter import messagebox
+from tkinter import messagebox, ttk, StringVar, BooleanVar, IntVar
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from tkinter import ttk
+from tkinter.ttk import Combobox
+from typing import List, Dict, Tuple, Optional
 
 def list_users():
     """List all MySQL users and their authentication details"""
@@ -22,6 +24,79 @@ def list_users():
     except Exception as e:
         messagebox.showerror("Error", f"Failed to list users: {str(e)}")
         return []
+
+def create_table(table_name: str, columns: List[Dict]) -> bool:
+    """
+    Create a new table with the given name and columns
+    
+    Args:
+        table_name: Name of the table to create
+        columns: List of column definitions, where each column is a dict with:
+            - name: Column name
+            - type: Column data type (e.g., 'VARCHAR(255)', 'INT', 'TEXT')
+            - not_null: Boolean indicating if column is NOT NULL
+            - default: Default value (optional)
+            - auto_increment: Boolean for AUTO_INCREMENT
+            - primary_key: Boolean for PRIMARY KEY
+            - unique: Boolean for UNIQUE constraint
+            
+    Returns:
+        bool: True if table was created successfully, False otherwise
+    """
+    if not table_name or not columns:
+        messagebox.showerror("Error", "Table name and at least one column are required")
+        return False
+        
+    try:
+        # Start building the CREATE TABLE statement
+        create_sql = f"CREATE TABLE IF NOT EXISTS `{table_name}` ("
+        
+        # Add columns
+        column_defs = []
+        primary_keys = []
+        
+        for col in columns:
+            col_def = f"`{col['name']}` {col['type']}"
+            
+            if col.get('not_null'):
+                col_def += " NOT NULL"
+                
+            if col.get('auto_increment'):
+                col_def += " AUTO_INCREMENT"
+                
+            if 'default' in col and col['default'] is not None and col['default'] != '':
+                default_val = col['default']
+                # Add quotes for string types if not a function
+                if 'INT' not in col['type'].upper() and not str(default_val).startswith(('CURRENT_TIMESTAMP', 'NULL')):
+                    default_val = f"'{default_val}'"
+                col_def += f" DEFAULT {default_val}"
+                
+            if col.get('unique'):
+                col_def += " UNIQUE"
+                
+            column_defs.append(col_def)
+            
+            if col.get('primary_key'):
+                primary_keys.append(f"`{col['name']}`")
+        
+        # Add primary key constraint if any
+        if primary_keys:
+            column_defs.append(f"PRIMARY KEY ({', '.join(primary_keys)})")
+        
+        # Complete the CREATE TABLE statement
+        create_sql += ",\n    ".join(column_defs)
+        create_sql += "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        
+        # Execute the statement
+        config.current_cursor.execute(create_sql)
+        config.current_connection.commit()
+        return True
+        
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to create table: {str(e)}")
+        if config.current_connection:
+            config.current_connection.rollback()
+        return False
 
 def list_tables():
     config.current_cursor.execute("SHOW TABLES")

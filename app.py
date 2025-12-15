@@ -167,6 +167,10 @@ class MySQLNavigator:
                  command=self.show_tables,
                  bootstyle=INFO, width=25).pack(pady=3, fill=X)
         
+        tb.Button(tbl_ops, text="➕ Create Table",
+                 command=self.create_table,
+                 bootstyle=SUCCESS, width=25).pack(pady=3, fill=X)
+        
         tb.Button(tbl_ops, text="🗑 Truncate Table", 
                  command=self.truncate_table,
                  bootstyle=WARNING, width=25).pack(pady=3, fill=X)
@@ -818,6 +822,229 @@ class MySQLNavigator:
         
         except Exception as e:
             messagebox.showerror("Error", f"Failed to list users:\n{str(e)}")
+    
+    def create_table(self):
+        """Show dialog to create a new table"""
+        if not config.current_connection:
+            messagebox.showwarning("Warning", "Please connect to MySQL and select a database first")
+            return
+            
+        if not config.current_database:
+            messagebox.showwarning("Warning", "Please select a database first")
+            return
+            
+        # Create the main window
+        self.create_table_window = tb.Toplevel(self.root)
+        self.create_table_window.title("Create New Table")
+        self.create_table_window.geometry("800x600")
+        self.create_table_window.minsize(700, 500)
+        
+        # Store column definitions
+        self.column_defs = []
+        
+        # Main container
+        main_frame = tb.Frame(self.create_table_window, padding=10)
+        main_frame.pack(fill=BOTH, expand=True)
+        
+        # Table name
+        table_frame = tb.Frame(main_frame)
+        table_frame.pack(fill=X, pady=(0, 10))
+        
+        tb.Label(table_frame, text="Table Name:", width=15).pack(side=LEFT, padx=5)
+        self.table_name_var = StringVar()
+        tb.Entry(table_frame, textvariable=self.table_name_var).pack(side=LEFT, fill=X, expand=True, padx=5)
+        
+        # Columns frame with scrollbar
+        columns_frame = tb.LabelFrame(main_frame, text="Columns", padding=10)
+        columns_frame.pack(fill=BOTH, expand=True, pady=5)
+        
+        # Canvas and scrollbar for columns
+        canvas = tb.Canvas(columns_frame, highlightthickness=0)
+        scrollbar = tb.Scrollbar(columns_frame, orient=VERTICAL, command=canvas.yview)
+        self.scrollable_columns = tb.Frame(canvas)
+        
+        self.scrollable_columns.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=self.scrollable_columns, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack scrollbar and canvas
+        scrollbar.pack(side=RIGHT, fill=Y)
+        canvas.pack(side=LEFT, fill=BOTH, expand=True)
+        
+        # Enable mousewheel scrolling
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        canvas.bind_all("<MouseWheel>", on_mousewheel)
+        
+        # Add first column
+        self.add_column_row()
+        
+        # Buttons frame
+        btn_frame = tb.Frame(main_frame)
+        btn_frame.pack(fill=X, pady=(10, 0))
+        
+        # Add column button
+        add_col_btn = tb.Button(
+            btn_frame,
+            text="➕ Add Column",
+            command=self.add_column_row,
+            bootstyle="success-outline",
+            width=15
+        )
+        add_col_btn.pack(side=LEFT, padx=5)
+        
+        # Create table button
+        create_btn = tb.Button(
+            btn_frame,
+            text="Create Table",
+            command=self.execute_create_table,
+            bootstyle="success",
+            width=15
+        )
+        create_btn.pack(side=RIGHT, padx=5)
+        
+        # Cancel button
+        cancel_btn = tb.Button(
+            btn_frame,
+            text="Cancel",
+            command=self.create_table_window.destroy,
+            bootstyle="danger",
+            width=10
+        )
+        cancel_btn.pack(side=RIGHT, padx=5)
+    
+    def add_column_row(self, col_data=None):
+        """Add a new row for column definition"""
+        if not hasattr(self, 'scrollable_columns') or not self.scrollable_columns.winfo_exists():
+            return
+            
+        row_frame = tb.Frame(self.scrollable_columns)
+        row_frame.pack(fill=X, pady=2)
+        
+        # Column name
+        col_name = StringVar(value=col_data['name'] if col_data and 'name' in col_data else '')
+        tb.Entry(row_frame, textvariable=col_name, width=15).pack(side=LEFT, padx=2)
+        
+        # Data type
+        data_types = [
+            'INT', 'VARCHAR(255)', 'TEXT', 'DATE', 'DATETIME', 
+            'TIMESTAMP', 'FLOAT', 'DOUBLE', 'DECIMAL(10,2)', 'BOOLEAN'
+        ]
+        data_type = StringVar(value=col_data['type'] if col_data and 'type' in col_data else 'VARCHAR(255)')
+        type_combo = tb.Combobox(
+            row_frame, 
+            textvariable=data_type, 
+            values=data_types,
+            width=15,
+            state='readonly'
+        )
+        type_combo.pack(side=LEFT, padx=2)
+        
+        # Checkboxes for column properties
+        not_null = BooleanVar(value=col_data.get('not_null', False) if col_data else False)
+        tb.Checkbutton(
+            row_frame, 
+            text="NOT NULL", 
+            variable=not_null,
+            bootstyle="round-toggle"
+        ).pack(side=LEFT, padx=2)
+        
+        primary_key = BooleanVar(value=col_data.get('primary_key', False) if col_data else False)
+        tb.Checkbutton(
+            row_frame, 
+            text="PRIMARY KEY", 
+            variable=primary_key,
+            bootstyle="round-toggle"
+        ).pack(side=LEFT, padx=2)
+        
+        auto_inc = BooleanVar(value=col_data.get('auto_increment', False) if col_data else False)
+        tb.Checkbutton(
+            row_frame, 
+            text="AUTO_INC", 
+            variable=auto_inc,
+            bootstyle="round-toggle"
+        ).pack(side=LEFT, padx=2)
+        
+        unique = BooleanVar(value=col_data.get('unique', False) if col_data else False)
+        tb.Checkbutton(
+            row_frame, 
+            text="UNIQUE", 
+            variable=unique,
+            bootstyle="round-toggle"
+        ).pack(side=LEFT, padx=2)
+        
+        # Default value
+        default_val = StringVar(value=col_data.get('default', '') if col_data else '')
+        tb.Label(row_frame, text="Default:").pack(side=LEFT, padx=(10, 2))
+        tb.Entry(row_frame, textvariable=default_val, width=15).pack(side=LEFT, padx=2)
+        
+        # Delete button
+        def remove_row():
+            row_frame.destroy()
+            
+        tb.Button(
+            row_frame,
+            text="🗑",
+            command=remove_row,
+            bootstyle="danger-outline",
+            width=3
+        ).pack(side=RIGHT, padx=2)
+        
+        # Store references to variables
+        row_frame.vars = {
+            'name': col_name,
+            'type': data_type,
+            'not_null': not_null,
+            'primary_key': primary_key,
+            'auto_increment': auto_inc,
+            'unique': unique,
+            'default': default_val
+        }
+    
+    def execute_create_table(self):
+        """Execute the CREATE TABLE statement with the defined columns"""
+        table_name = self.table_name_var.get().strip()
+        if not table_name:
+            messagebox.showerror("Error", "Please enter a table name")
+            return
+            
+        # Get all column definitions
+        columns = []
+        for child in self.scrollable_columns.winfo_children():
+            if hasattr(child, 'vars'):
+                col_data = {
+                    'name': child.vars['name'].get().strip(),
+                    'type': child.vars['type'].get().strip(),
+                    'not_null': child.vars['not_null'].get(),
+                    'primary_key': child.vars['primary_key'].get(),
+                    'auto_increment': child.vars['auto_increment'].get(),
+                    'unique': child.vars['unique'].get(),
+                    'default': child.vars['default'].get().strip() or None
+                }
+                
+                # Validate column name
+                if not col_data['name']:
+                    messagebox.showerror("Error", "Column name cannot be empty")
+                    return
+                    
+                columns.append(col_data)
+        
+        if not columns:
+            messagebox.showerror("Error", "At least one column is required")
+            return
+            
+        # Create the table using the operations module
+        if operations.create_table(table_name, columns):
+            messagebox.showinfo("Success", f"Table '{table_name}' created successfully!")
+            self.create_table_window.destroy()
+            # Refresh the tables list
+            if config.current_database:
+                self.load_tables(config.current_database)
 
 if __name__ == "__main__":
     root = tb.Window(themename="darkly")
