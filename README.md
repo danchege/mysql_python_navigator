@@ -1,174 +1,217 @@
 # MySQL Navigator
 
-A modern, user-friendly GUI application for managing MySQL databases, built with Python and ttkbootstrap.
+A modern, GUI-based MySQL management tool built with **Python**, **Tkinter**, and **ttkbootstrap**.
+MySQL Navigator is designed as a clean replacement for legacy batch scripts and command-line workflows, providing a professional, portfolio-ready desktop application similar in spirit to MySQL Workbench.
 
-![MySQL Navigator Screenshot](screenshot.png)
+---
 
-## ✨ Features
+## 🚀 Features
 
-- **Modern Dark/Light Theme** - Clean, responsive interface with theme support
-- **Database Management** - View, create, and manage databases
-- **Table Operations** - Browse tables, view data, and execute custom queries
-- **Data Import/Export** - Easily backup and restore your databases
-- **User-Friendly Interface** - Intuitive layout with easy navigation
-- **Cross-Platform** - Works on Windows, macOS, and Linux
+### Connection Management
 
-## 🚀 Installation
+* Connect to MySQL using host, port, username, and password
+* Visual connection status indicator
+* Supports local and remote MySQL servers
 
-### Prerequisites
-- Python 3.8 or higher
-- MySQL Server
-- pip (Python package manager)
+### Database Management
 
-### Setup
+* List all user databases (system databases hidden)
+* Create new databases
+* Drop existing databases with confirmation
+* Select active database via TreeView
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/mysql-navigator.git
-   cd mysql-navigator
-   ```
+### Table Management
 
-2. **Create and activate a virtual environment (recommended)**
-   ```bash
-   # On Windows
-   python -m venv venv
-   .\venv\Scripts\activate
-   
-   # On macOS/Linux
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+* View tables inside each database
+* Create tables using a visual column builder
+* View table data in a grid layout
+* Insert, update, and delete records
+* Truncate tables
+* Delete all records (without resetting auto-increment)
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### User Management
 
-## 🛠️ Configuration
+* Create MySQL users with different privilege levels:
 
-## 🔌 Connection Setup
+  * Root user (full access + grant option)
+  * Admin user (full access, no grants)
+  * Database-specific user
+* List all MySQL users with authentication details
 
-### Option 1: Using Default Root User (Not Recommended for Production)
-1. Ensure your MySQL server is running
-2. Use the following credentials in the application:
-   - Host: `localhost`
-   - Port: `3306` (default)
-   - User: `root`
-   - Password: [your root password]
+### Backup & Export
 
-### Option 2: Create a New Database User (Recommended)
-1. Access MySQL as root:
-   ```bash
-   sudo mysql
-   ```
-2. Create a new user (replace 'your_password' with a strong password):
-   ```sql
-   CREATE USER 'dbuser'@'localhost' IDENTIFIED BY 'your_password';
-   GRANT ALL PRIVILEGES ON *.* TO 'dbuser'@'localhost' WITH GRANT OPTION;
-   FLUSH PRIVILEGES;
-   EXIT;
-   ```
-3. Use these credentials in the application:
-   - Host: `localhost`
-   - Port: `3306`
-   - User: `dbuser`
-   - Password: `your_password`
+* Backup selected database using `mysqldump`
+* Timestamped `.sql` backups
+* Automatic `backups/` directory creation
 
-### Option 3: Using Environment Variables
-Create a `.env` file in the project root with your MySQL credentials:
+### SQL Query Tool
+
+* Run custom SQL queries
+* View query results in a separate window
+
+### UI & UX
+
+* Modern dark/light themes (toggleable)
+* Responsive window sizing
+* Scrollable panels for large content
+* TreeView-based database and table navigation
+
+---
+
+## 📂 Project Structure
+
+```text
+mysql_navigator/
+│
+├── app.py              # Main GUI application
+├── db.py               # MySQL connection & database-level operations
+├── operations.py       # Table, record, user & query operations
+├── backup.py           # Database backup/export logic
+├── config.py           # Shared application state
+└── legacy/
+    └── Mysql Navigator.bat   # Old batch script (deprecated)
 ```
-   DB_HOST=localhost
-   DB_USER=your_username
-   DB_PASSWORD=your_password
-   ```
 
-## 🚦 Usage
+---
 
-1. **Start the application**
-   ```bash
-   # Activate virtual environment first (if created)
-   source venv/bin/activate  # Linux/macOS
-   .\venv\Scripts\activate  # Windows
-   
-   # Run the application
-   python app.py
-   ```
+## 🧠 Architecture Overview
 
-2. **Connection Troubleshooting**
-   - If you get "Access denied" errors:
-     - Verify your username and password
-     - Ensure the user has proper privileges
-     - Try connecting with `sudo` if using root
-   - If MySQL server is not running:
-     ```bash
-     # On Linux
-     sudo systemctl start mysql
-     
-     # On macOS (using Homebrew)
-     brew services start mysql
-     
-     # On Windows
-     net start mysql
-     ```
-   - If you can't create users:
-     - Try logging in as root: `sudo mysql -u root`
-     - Check existing users: `SELECT user, host FROM mysql.user;`
-     - Drop problematic users: `DROP USER 'username'@'localhost';`
+### Shared State (`config.py`)
 
-2. **Connect to your MySQL server**
-   - Enter your MySQL credentials
-   - Click "Connect"
+The application replaces batch variables with a shared Python state:
 
-3. **Navigate the interface**
-   - Left sidebar: Database and table navigation
-   - Main panel: Query results and table data
-   - Toolbar: Common actions and settings
+```python
+current_connection = None
+current_cursor = None
+current_db = None
+```
 
-## 🧩 Features in Detail
+This allows all modules to access the active connection, cursor, and selected database without global hacks or duplicated logic.
 
-### Database Operations
-- View all databases
-- Create new databases
-- Drop existing databases
-- Set default database
+---
 
-### Table Operations
-- Browse table schemas
-- View and edit table data
-- Execute custom SQL queries
-- Import/export table data
+## 🔧 Core Modules
 
-### Data Management
-- Insert new records
-- Update existing records
-- Delete records
-- Truncate tables
+### `app.py` (GUI Layer)
 
-## 📦 Dependencies
+* Built using `ttkbootstrap` for modern styling
+* Handles:
 
-- `ttkbootstrap` - Modern themed widgets for Tkinter
-- `mysql-connector-python` - MySQL database connector
-- `python-dotenv` - Environment variable management
+  * Window layout
+  * User interactions
+  * Dialogs and confirmations
+  * TreeView navigation
+* Calls logic from `db.py`, `operations.py`, and `backup.py`
 
-### Installation
+### `db.py` (Database Engine)
+
+* Handles MySQL connections
+* Lists databases
+* Selects active database
+* Creates and drops databases
+
+### `operations.py` (Data & User Operations)
+
+* Table creation and management
+* CRUD operations (Create, Read, Update, Delete)
+* Custom SQL execution
+* MySQL user creation and listing
+
+### `backup.py` (Backup Engine)
+
+* Uses `mysqldump` via `subprocess`
+* Creates timestamped backups
+* Stores backups locally
+
+---
+
+## 🛠️ Requirements
+
+* Python 3.9+
+* MySQL Server 5.7 / 8.0+
+* `mysqldump` available in PATH
+
+### Python Dependencies
+
+Install required packages:
+
 ```bash
-# Install all dependencies
-pip install -r requirements.txt
-
-# Or install manually
-pip install ttkbootstrap mysql-connector-python python-dotenv
+pip install mysql-connector-python ttkbootstrap
 ```
 
-## 📝 License
+---
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## ▶️ Running the Application
 
-## 🤝 Contributing
+1. Clone or download the project
+2. Ensure MySQL server is running
+3. Install dependencies
+4. Run:
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+```bash
+python app.py
+```
 
-## 📧 Contact
+---
 
-Daniel Chege - [Your Email]
+## 🔐 Security Notes
 
-Project Link: [https://github.com/yourusername/mysql-navigator](https://github.com/yourusername/mysql-navigator)
+* Passwords are never stored on disk
+* MySQL credentials are kept in memory only
+* User creation actions require sufficient MySQL privileges
+
+⚠️ Granting ROOT or ADMIN users should be done carefully.
+
+---
+
+## 📦 Backup Output Example
+
+```text
+backups/
+└── mydatabase_20251215_142233.sql
+```
+
+---
+
+## 🧪 Tested On
+
+* Linux (Kali, Ubuntu)
+* Windows 10 / 11
+* MySQL 8.x
+
+---
+
+## 🎯 Project Goals
+
+* Replace my previous legacy batch scripts
+* Demonstrate clean Python architecture
+* Showcase GUI + database integration
+* Serve as a portfolio-grade desktop application
+
+---
+
+## 🛣️ Future Improvements
+
+* SQL editor with syntax highlighting
+* Table designer (ALTER TABLE)
+* Data export to CSV / Excel
+* Role & privilege editor
+* Connection profiles
+
+---
+
+## 👨‍💻 Author
+
+**Daniel Chege**
+MySQL Navigator – A modern evolution of classic database tooling
+
+---
+
+## 📜 License
+
+This project is provided for learning and portfolio use.
+You are free to modify and extend it as needed.
+
+---
+
+🔥 *My batch script didn’t die — it evolved.*
