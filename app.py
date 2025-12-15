@@ -1,7 +1,7 @@
 # File: app.py
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, StringVar, BooleanVar
 import db, backup, operations, config
 
 class MySQLNavigator:
@@ -48,14 +48,13 @@ class MySQLNavigator:
         
         tb.Label(conn_row, text="User:").pack(side=LEFT, padx=5)
         self.user_entry = tb.Entry(conn_row, width=15)
+        self.user_entry.insert(0, "root")
         self.user_entry.pack(side=LEFT, padx=5)
         
         tb.Label(conn_row, text="Port:").pack(side=LEFT, padx=5)
         self.port_entry = tb.Entry(conn_row, width=8)
         self.port_entry.insert(0, "3306")
         self.port_entry.pack(side=LEFT, padx=5)
-        self.user_entry.insert(0, "root")
-        self.user_entry.pack(side=LEFT, padx=5)
         
         tb.Label(conn_row, text="Password:").pack(side=LEFT, padx=5)
         self.password_entry = tb.Entry(conn_row, show="*", width=15)
@@ -70,7 +69,6 @@ class MySQLNavigator:
         self.status_label.pack(side=LEFT, padx=10)
         
         # Theme toggle button
-        # Theme Toggle Button
         self.theme_btn = tb.Button(conn_row, text="🌙 Dark", 
                                    command=self.toggle_theme, 
                                    bootstyle="secondary-outline",
@@ -81,14 +79,13 @@ class MySQLNavigator:
         self.main_frame = tb.Frame(root)
         self.main_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
-        # Right Pane - Operations (MOVED TO RIGHT FIRST)
-        # Calculate responsive width (25% of window, min 300px, max 450px)
+        # Right Pane - Operations
         operations_width = max(300, min(450, int(window_width * 0.25)))
         
         self.right_pane = tb.LabelFrame(self.main_frame, text="Operations", 
                                         padding=10, width=operations_width)
         self.right_pane.pack(side=RIGHT, fill=BOTH, expand=False, padx=(5, 0))
-        self.right_pane.pack_propagate(False)  # Maintain fixed width
+        self.right_pane.pack_propagate(False)
         
         # Current selection label
         self.selection_label = tb.Label(self.right_pane, 
@@ -109,7 +106,6 @@ class MySQLNavigator:
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # Pack scrollbar and canvas
         scrollbar.pack(side=RIGHT, fill=Y)
         canvas.pack(side=LEFT, fill=BOTH, expand=True)
         
@@ -119,7 +115,7 @@ class MySQLNavigator:
         
         canvas.bind_all("<MouseWheel>", on_mousewheel)
         
-        # Operation buttons (now in scrollable frame)
+        # Operation buttons
         btn_frame = scrollable_frame
         
         # User Management
@@ -163,13 +159,29 @@ class MySQLNavigator:
         tbl_ops = tb.LabelFrame(btn_frame, text="Table Operations", padding=10)
         tbl_ops.pack(fill=X, pady=5)
         
-        tb.Button(tbl_ops, text="👁 Show Tables", 
+        tb.Button(tbl_ops, text="📋 Show Tables", 
                  command=self.show_tables,
                  bootstyle=INFO, width=25).pack(pady=3, fill=X)
         
         tb.Button(tbl_ops, text="➕ Create Table",
                  command=self.create_table,
                  bootstyle=SUCCESS, width=25).pack(pady=3, fill=X)
+        
+        tb.Button(tbl_ops, text="📊 View Table Data", 
+                 command=self.view_table_data,
+                 bootstyle=INFO, width=25).pack(pady=3, fill=X)
+        
+        tb.Button(tbl_ops, text="➕ Insert Record", 
+                 command=self.insert_record,
+                 bootstyle=SUCCESS, width=25).pack(pady=3, fill=X)
+        
+        tb.Button(tbl_ops, text="✏️ Update Record", 
+                 command=self.update_record,
+                 bootstyle=WARNING, width=25).pack(pady=3, fill=X)
+        
+        tb.Button(tbl_ops, text="🗑 Delete Record", 
+                 command=self.delete_record,
+                 bootstyle=DANGER, width=25).pack(pady=3, fill=X)
         
         tb.Button(tbl_ops, text="🗑 Truncate Table", 
                  command=self.truncate_table,
@@ -183,11 +195,11 @@ class MySQLNavigator:
         query_ops = tb.LabelFrame(btn_frame, text="Query Operations", padding=10)
         query_ops.pack(fill=X, pady=5)
         
-        tb.Button(query_ops, text="✏ Run Custom Query", 
+        tb.Button(query_ops, text="✅ Run Custom Query", 
                  command=self.run_query,
                  bootstyle=SUCCESS, width=25).pack(pady=3, fill=X)
         
-        # Left Pane - Database TreeView (NOW ON LEFT)
+        # Left Pane - Database TreeView
         self.left_pane = tb.LabelFrame(self.main_frame, text="Databases & Tables", 
                                        padding=10)
         self.left_pane.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 5))
@@ -209,78 +221,13 @@ class MySQLNavigator:
         self.tree.bind('<<TreeviewSelect>>', self.on_tree_select)
         self.tree.bind('<Double-Button-1>', self.on_tree_double_click)
     
-    def list_users(self):
-        """Display a list of all MySQL users"""
-        try:
-            # Check if connected
-            if not hasattr(config, 'current_connection') or not config.current_connection.is_connected():
-                messagebox.showwarning("Not Connected", "Please connect to the database first")
-                return
-
-            # Get users using the operations module
-            users = operations.list_users()
-
-            # Create a new window
-            user_window = tb.Toplevel(self.root)
-            user_window.title("MySQL Users")
-            user_window.geometry("700x400")
-            
-            # Create a treeview to display users
-            columns = ("Username", "Host", "Has Password", "Auth Plugin")
-            tree = ttk.Treeview(user_window, columns=columns, show="headings")
-            
-            # Configure columns with appropriate widths
-            column_widths = {
-                "Username": 150, 
-                "Host": 150, 
-                "Has Password": 100, 
-                "Auth Plugin": 150
-            }
-            
-            for col in columns:
-                tree.heading(col, text=col)
-                tree.column(col, width=column_widths.get(col, 100), anchor='center')
-            
-            # Add users to the treeview
-            for user in users:
-                tree.insert("", "end", values=user)
-            
-            # Add scrollbar
-            scrollbar = ttk.Scrollbar(user_window, orient="vertical", command=tree.yview)
-            tree.configure(yscrollcommand=scrollbar.set)
-            
-            # Pack everything
-            tree.pack(side=LEFT, fill=BOTH, expand=True, padx=5, pady=5)
-            scrollbar.pack(side=RIGHT, fill=Y)
-            
-            # Add close button
-            btn_frame = tb.Frame(user_window)
-            btn_frame.pack(fill=X, pady=5)
-            
-            close_btn = tb.Button(
-                btn_frame,
-                text="Close",
-                command=user_window.destroy,
-                bootstyle="danger",
-                width=10
-            )
-            close_btn.pack(side=RIGHT, padx=10)
-            
-            # Make the window resizable
-            user_window.minsize(600, 300)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to list users: {str(e)}")
-    
     def toggle_theme(self):
         """Toggle between dark and light themes"""
         if self.current_theme == "darkly":
-            # Switch to light theme
             self.current_theme = "flatly"
             self.theme_btn.config(text="☀️ Light")
             self.root.style.theme_use("flatly")
         else:
-            # Switch to dark theme
             self.current_theme = "darkly"
             self.theme_btn.config(text="🌙 Dark")
             self.root.style.theme_use("darkly")
@@ -327,12 +274,12 @@ class MySQLNavigator:
             
             # Add databases to tree
             for db_name in databases:
-                # Skip system databases but keep track of them
+                # Skip system databases
                 if db_name.lower() in ['information_schema', 'mysql', 'performance_schema', 'sys']:
                     continue
                 non_system_dbs.append(db_name)
                 
-                # Insert database with a dummy child (for expand arrow)
+                # Insert database with a dummy child
                 self.tree.insert('', 'end', db_name, text=f"📁 {db_name}", 
                                values=['database'], open=False)
                 self.tree.insert(db_name, 'end', text='Loading...')
@@ -368,7 +315,6 @@ class MySQLNavigator:
         if not self._check_connection():
             return
             
-        # Create dialog window
         dialog = tb.Toplevel(self.root)
         dialog.title("Create Database")
         dialog.geometry("400x150")
@@ -380,7 +326,6 @@ class MySQLNavigator:
         y = (dialog.winfo_screenheight() - dialog.winfo_height()) // 2
         dialog.geometry(f"+{x}+{y}")
         
-        # Database name input
         tb.Label(dialog, text="Database Name:").pack(pady=(20, 5))
         db_name_entry = tb.Entry(dialog, width=30)
         db_name_entry.pack(pady=5)
@@ -400,7 +345,6 @@ class MySQLNavigator:
             else:
                 messagebox.showerror("Error", message)
         
-        # Buttons
         btn_frame = tb.Frame(dialog)
         btn_frame.pack(pady=10)
         
@@ -424,11 +368,9 @@ class MySQLNavigator:
         db_name = selected[0]
         parent = self.tree.parent(db_name)
         
-        # Only allow dropping databases (not tables)
         if parent != '':
             return
             
-        # Confirm before dropping
         if not messagebox.askyesno("Confirm Drop", 
                                  f"Are you sure you want to drop database '{db_name}'?\nThis action cannot be undone!"):
             return
@@ -450,7 +392,6 @@ class MySQLNavigator:
         item = selected[0]
         parent = self.tree.parent(item)
         
-        # Only expand if it's a database (no parent)
         if parent == '':
             self.load_tables(item)
     
@@ -525,7 +466,6 @@ class MySQLNavigator:
             messagebox.showwarning("Warning", "Please select a database first")
             return
         
-        # Simple input dialog
         table = tb.dialogs.Querybox.get_string(
             prompt="Enter table name to truncate:",
             title="Truncate Table"
@@ -576,7 +516,6 @@ class MySQLNavigator:
             messagebox.showwarning("Warning", "Please select a database first")
             return
         
-        # Create query window
         query_window = tb.Toplevel(self.root)
         query_window.title("Run SQL Query")
         query_window.geometry("600x400")
@@ -597,16 +536,13 @@ class MySQLNavigator:
                 result = operations.run_query(query)
                 
                 if result:
-                    # Show results in a new window
                     result_window = tb.Toplevel(query_window)
                     result_window.title("Query Results")
                     result_window.geometry("700x400")
                     
-                    # Create text widget for results
                     result_text = tb.Text(result_window, height=20, width=80)
                     result_text.pack(padx=10, pady=10, fill=BOTH, expand=True)
                     
-                    # Format and display results
                     for row in result:
                         result_text.insert("end", str(row) + "\n")
                     
@@ -626,24 +562,20 @@ class MySQLNavigator:
             messagebox.showwarning("Warning", "Please connect to MySQL first")
             return
         
-        # Create user window
         user_window = tb.Toplevel(self.root)
         user_window.title("Create MySQL User")
         user_window.geometry("500x500")
         
-        # Username
         tb.Label(user_window, text="Username:", 
                 font=("Segoe UI", 10, "bold")).pack(pady=(20, 5))
         username_entry = tb.Entry(user_window, width=40)
         username_entry.pack(pady=5)
         
-        # Password
         tb.Label(user_window, text="Password:", 
                 font=("Segoe UI", 10, "bold")).pack(pady=(10, 5))
         password_entry = tb.Entry(user_window, show="*", width=40)
         password_entry.pack(pady=5)
         
-        # Show password checkbox
         show_pass_var = tb.BooleanVar(value=False)
         def toggle_password():
             if show_pass_var.get():
@@ -655,21 +587,19 @@ class MySQLNavigator:
                       variable=show_pass_var, 
                       command=toggle_password).pack(pady=3)
         
-        # Host
         tb.Label(user_window, text="Host (default: localhost):", 
                 font=("Segoe UI", 10, "bold")).pack(pady=(10, 5))
         host_entry = tb.Entry(user_window, width=40)
         host_entry.insert(0, "localhost")
         host_entry.pack(pady=5)
         
-        # User type frame
         type_frame = tb.LabelFrame(user_window, text="User Type", padding=10)
         type_frame.pack(pady=15, padx=20, fill=X)
         
         user_type = tb.StringVar(value="admin")
         
         tb.Radiobutton(type_frame, 
-                      text="🔑 ROOT USER (Full system access + grant privileges)", 
+                      text="🔒 ROOT USER (Full system access + grant privileges)", 
                       variable=user_type, value="root").pack(anchor=W, pady=5)
         
         tb.Radiobutton(type_frame, 
@@ -680,7 +610,6 @@ class MySQLNavigator:
                       text="📁 DATABASE USER (Specific database only)", 
                       variable=user_type, value="specific").pack(anchor=W, pady=5)
         
-        # Database selection for specific privileges
         db_label = tb.Label(type_frame, text="Database name:")
         db_entry = tb.Entry(type_frame, width=30)
         
@@ -707,11 +636,10 @@ class MySQLNavigator:
                 selected_type = user_type.get()
                 
                 if selected_type == "root":
-                    # Create ROOT user with full privileges
                     operations.create_user(username, password, host, 
                                          user_type="root")
                     messagebox.showinfo("Success", 
-                        f"🔑 ROOT USER Created!\n\n"
+                        f"🔒 ROOT USER Created!\n\n"
                         f"Username: {username}\n"
                         f"Host: {host}\n\n"
                         f"✓ ALL privileges on ALL databases\n"
@@ -721,7 +649,6 @@ class MySQLNavigator:
                         f"⚠️ This user has complete control over MySQL!")
                 
                 elif selected_type == "admin":
-                    # Create ADMIN user
                     operations.create_user(username, password, host, 
                                          user_type="admin")
                     messagebox.showinfo("Success", 
@@ -733,7 +660,6 @@ class MySQLNavigator:
                         f"✓ Cannot grant privileges")
                 
                 else:
-                    # Create DATABASE-SPECIFIC user
                     db_name = db_entry.get().strip()
                     if not db_name:
                         messagebox.showerror("Error", "Please specify a database name")
@@ -753,7 +679,6 @@ class MySQLNavigator:
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to create user:\n{str(e)}")
         
-        # Create button
         btn_frame = tb.Frame(user_window)
         btn_frame.pack(pady=20)
         
@@ -772,7 +697,6 @@ class MySQLNavigator:
         try:
             users = operations.list_users()
             
-            # Create users window
             users_window = tb.Toplevel(self.root)
             users_window.title("MySQL Users")
             users_window.geometry("600x400")
@@ -780,15 +704,12 @@ class MySQLNavigator:
             tb.Label(users_window, text="MySQL Users", 
                     font=("Segoe UI", 12, "bold")).pack(pady=10)
             
-            # Create treeview for users
             tree_frame = tb.Frame(users_window)
             tree_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
             
-            # Scrollbar
             scrollbar = tb.Scrollbar(tree_frame)
             scrollbar.pack(side=RIGHT, fill=Y)
             
-            # Treeview with all columns
             columns = ('username', 'host', 'has_password', 'auth_plugin')
             users_tree = ttk.Treeview(
                 tree_frame, 
@@ -797,13 +718,11 @@ class MySQLNavigator:
                 yscrollcommand=scrollbar.set
             )
             
-            # Configure columns
             users_tree.heading('username', text='Username')
             users_tree.heading('host', text='Host')
             users_tree.heading('has_password', text='Has Password')
             users_tree.heading('auth_plugin', text='Auth Plugin')
             
-            # Set column widths
             users_tree.column('username', width=150)
             users_tree.column('host', width=150)
             users_tree.column('has_password', width=100)
@@ -812,7 +731,6 @@ class MySQLNavigator:
             users_tree.pack(fill=BOTH, expand=True)
             scrollbar.config(command=users_tree.yview)
             
-            # Populate users with all columns
             for user_data in users:
                 users_tree.insert('', 'end', values=user_data)
             
@@ -826,27 +744,24 @@ class MySQLNavigator:
     def create_table(self):
         """Show dialog to create a new table"""
         if not config.current_connection:
-            messagebox.showwarning("Warning", "Please connect to MySQL and select a database first")
+            messagebox.showwarning("Warning", "Please connect to MySQL first")
             return
             
-        if not config.current_database:
+        if not config.current_db:
             messagebox.showwarning("Warning", "Please select a database first")
             return
-            
-        # Create the main window
+        
+        # Use the database
+        db.select_database(config.current_db)
+        
         self.create_table_window = tb.Toplevel(self.root)
         self.create_table_window.title("Create New Table")
         self.create_table_window.geometry("800x600")
         self.create_table_window.minsize(700, 500)
         
-        # Store column definitions
-        self.column_defs = []
-        
-        # Main container
         main_frame = tb.Frame(self.create_table_window, padding=10)
         main_frame.pack(fill=BOTH, expand=True)
         
-        # Table name
         table_frame = tb.Frame(main_frame)
         table_frame.pack(fill=X, pady=(0, 10))
         
@@ -854,11 +769,9 @@ class MySQLNavigator:
         self.table_name_var = StringVar()
         tb.Entry(table_frame, textvariable=self.table_name_var).pack(side=LEFT, fill=X, expand=True, padx=5)
         
-        # Columns frame with scrollbar
         columns_frame = tb.LabelFrame(main_frame, text="Columns", padding=10)
         columns_frame.pack(fill=BOTH, expand=True, pady=5)
         
-        # Canvas and scrollbar for columns
         canvas = tb.Canvas(columns_frame, highlightthickness=0)
         scrollbar = tb.Scrollbar(columns_frame, orient=VERTICAL, command=canvas.yview)
         self.scrollable_columns = tb.Frame(canvas)
@@ -871,24 +784,19 @@ class MySQLNavigator:
         canvas.create_window((0, 0), window=self.scrollable_columns, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # Pack scrollbar and canvas
         scrollbar.pack(side=RIGHT, fill=Y)
         canvas.pack(side=LEFT, fill=BOTH, expand=True)
         
-        # Enable mousewheel scrolling
         def on_mousewheel(event):
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
         canvas.bind_all("<MouseWheel>", on_mousewheel)
         
-        # Add first column
         self.add_column_row()
         
-        # Buttons frame
         btn_frame = tb.Frame(main_frame)
         btn_frame.pack(fill=X, pady=(10, 0))
         
-        # Add column button
         add_col_btn = tb.Button(
             btn_frame,
             text="➕ Add Column",
@@ -898,7 +806,6 @@ class MySQLNavigator:
         )
         add_col_btn.pack(side=LEFT, padx=5)
         
-        # Create table button
         create_btn = tb.Button(
             btn_frame,
             text="Create Table",
@@ -908,7 +815,6 @@ class MySQLNavigator:
         )
         create_btn.pack(side=RIGHT, padx=5)
         
-        # Cancel button
         cancel_btn = tb.Button(
             btn_frame,
             text="Cancel",
@@ -926,11 +832,9 @@ class MySQLNavigator:
         row_frame = tb.Frame(self.scrollable_columns)
         row_frame.pack(fill=X, pady=2)
         
-        # Column name
         col_name = StringVar(value=col_data['name'] if col_data and 'name' in col_data else '')
         tb.Entry(row_frame, textvariable=col_name, width=15).pack(side=LEFT, padx=2)
         
-        # Data type
         data_types = [
             'INT', 'VARCHAR(255)', 'TEXT', 'DATE', 'DATETIME', 
             'TIMESTAMP', 'FLOAT', 'DOUBLE', 'DECIMAL(10,2)', 'BOOLEAN'
@@ -945,7 +849,6 @@ class MySQLNavigator:
         )
         type_combo.pack(side=LEFT, padx=2)
         
-        # Checkboxes for column properties
         not_null = BooleanVar(value=col_data.get('not_null', False) if col_data else False)
         tb.Checkbutton(
             row_frame, 
@@ -978,12 +881,10 @@ class MySQLNavigator:
             bootstyle="round-toggle"
         ).pack(side=LEFT, padx=2)
         
-        # Default value
         default_val = StringVar(value=col_data.get('default', '') if col_data else '')
         tb.Label(row_frame, text="Default:").pack(side=LEFT, padx=(10, 2))
         tb.Entry(row_frame, textvariable=default_val, width=15).pack(side=LEFT, padx=2)
         
-        # Delete button
         def remove_row():
             row_frame.destroy()
             
@@ -995,7 +896,6 @@ class MySQLNavigator:
             width=3
         ).pack(side=RIGHT, padx=2)
         
-        # Store references to variables
         row_frame.vars = {
             'name': col_name,
             'type': data_type,
@@ -1007,13 +907,12 @@ class MySQLNavigator:
         }
     
     def execute_create_table(self):
-        """Execute the CREATE TABLE statement with the defined columns"""
+        """Execute the CREATE TABLE statement"""
         table_name = self.table_name_var.get().strip()
         if not table_name:
             messagebox.showerror("Error", "Please enter a table name")
             return
             
-        # Get all column definitions
         columns = []
         for child in self.scrollable_columns.winfo_children():
             if hasattr(child, 'vars'):
@@ -1027,7 +926,6 @@ class MySQLNavigator:
                     'default': child.vars['default'].get().strip() or None
                 }
                 
-                # Validate column name
                 if not col_data['name']:
                     messagebox.showerror("Error", "Column name cannot be empty")
                     return
@@ -1038,128 +936,313 @@ class MySQLNavigator:
             messagebox.showerror("Error", "At least one column is required")
             return
             
-        # Create the table using the operations module
         if operations.create_table(table_name, columns):
             messagebox.showinfo("Success", f"Table '{table_name}' created successfully!")
             self.create_table_window.destroy()
-            # Refresh the tables list
-            if config.current_database:
-                self.load_tables(config.current_database)
+            if config.current_db:
+                self.load_tables(config.current_db)
+    
+    # CRUD Operations
+    def view_table_data(self):
+        """View all data in a table"""
+        if not config.current_db:
+            messagebox.showwarning("Warning", "Please select a database first")
+            return
+        
+        table = tb.dialogs.Querybox.get_string(
+            prompt="Enter table name:",
+            title="View Table Data"
+        )
+        
+        if not table:
+            return
+        
+        try:
+            data, columns = operations.view_table_data(table)
+            
+            if not data:
+                messagebox.showinfo("No Data", f"Table '{table}' has no records")
+                return
+            
+            # Create window to display data
+            data_window = tb.Toplevel(self.root)
+            data_window.title(f"Data from '{table}'")
+            data_window.geometry("900x500")
+            
+            # Create treeview
+            tree_frame = tb.Frame(data_window)
+            tree_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
+            
+            tree_scroll = tb.Scrollbar(tree_frame)
+            tree_scroll.pack(side=RIGHT, fill=Y)
+            
+            data_tree = ttk.Treeview(
+                tree_frame,
+                columns=columns,
+                show='headings',
+                yscrollcommand=tree_scroll.set
+            )
+            
+            for col in columns:
+                data_tree.heading(col, text=col)
+                data_tree.column(col, width=100)
+            
+            for row in data:
+                data_tree.insert('', 'end', values=row)
+            
+            data_tree.pack(side=LEFT, fill=BOTH, expand=True)
+            tree_scroll.config(command=data_tree.yview)
+            
+            tb.Label(data_window, text=f"Total records: {len(data)}").pack(pady=5)
+            
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+    
+    def insert_record(self):
+        """Insert a new record into a table"""
+        if not config.current_db:
+            messagebox.showwarning("Warning", "Please select a database first")
+            return
+        
+        table = tb.dialogs.Querybox.get_string(
+            prompt="Enter table name:",
+            title="Insert Record"
+        )
+        
+        if not table:
+            return
+        
+        try:
+            columns = operations.get_table_columns(table)
+            
+            if not columns:
+                messagebox.showerror("Error", f"Could not get columns for table '{table}'")
+                return
+            
+            # Create insert window
+            insert_window = tb.Toplevel(self.root)
+            insert_window.title(f"Insert Record into '{table}'")
+            insert_window.geometry("500x600")
+            
+            main_frame = tb.Frame(insert_window, padding=10)
+            main_frame.pack(fill=BOTH, expand=True)
+            
+            tb.Label(main_frame, text=f"Insert into '{table}'", 
+                    font=("Segoe UI", 12, "bold")).pack(pady=10)
+            
+            # Canvas for scrolling
+            canvas = tb.Canvas(main_frame)
+            scrollbar = tb.Scrollbar(main_frame, orient=VERTICAL, command=canvas.yview)
+            scrollable_frame = tb.Frame(canvas)
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            scrollbar.pack(side=RIGHT, fill=Y)
+            canvas.pack(side=LEFT, fill=BOTH, expand=True)
+            
+            # Create entry fields for each column
+            entries = {}
+            for col_name, col_type in columns:
+                field_frame = tb.Frame(scrollable_frame)
+                field_frame.pack(fill=X, pady=5, padx=10)
+                
+                tb.Label(field_frame, text=f"{col_name} ({col_type}):", 
+                        width=20, anchor=W).pack(side=LEFT, padx=5)
+                
+                entry = tb.Entry(field_frame, width=30)
+                entry.pack(side=LEFT, padx=5, fill=X, expand=True)
+                entries[col_name] = entry
+            
+            def do_insert():
+                values = {}
+                for col_name, entry in entries.items():
+                    val = entry.get().strip()
+                    if val:
+                        values[col_name] = val
+                
+                if not values:
+                    messagebox.showwarning("Warning", "Please enter at least one value")
+                    return
+                
+                if operations.insert_record(table, values):
+                    messagebox.showinfo("Success", "Record inserted successfully!")
+                    insert_window.destroy()
+            
+            btn_frame = tb.Frame(main_frame)
+            btn_frame.pack(pady=10)
+            
+            tb.Button(btn_frame, text="Insert", command=do_insert,
+                     bootstyle=SUCCESS, width=12).pack(side=LEFT, padx=5)
+            tb.Button(btn_frame, text="Cancel", command=insert_window.destroy,
+                     bootstyle=DANGER, width=12).pack(side=LEFT, padx=5)
+            
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+    
+    def update_record(self):
+        """Update records in a table"""
+        if not config.current_db:
+            messagebox.showwarning("Warning", "Please select a database first")
+            return
+        
+        table = tb.dialogs.Querybox.get_string(
+            prompt="Enter table name:",
+            title="Update Record"
+        )
+        
+        if not table:
+            return
+        
+        try:
+            columns = operations.get_table_columns(table)
+            
+            update_window = tb.Toplevel(self.root)
+            update_window.title(f"Update Records in '{table}'")
+            update_window.geometry("600x500")
+            
+            main_frame = tb.Frame(update_window, padding=10)
+            main_frame.pack(fill=BOTH, expand=True)
+            
+            tb.Label(main_frame, text=f"Update records in '{table}'",
+                    font=("Segoe UI", 12, "bold")).pack(pady=10)
+            
+            # WHERE clause
+            where_frame = tb.LabelFrame(main_frame, text="WHERE Condition", padding=10)
+            where_frame.pack(fill=X, pady=10)
+            
+            tb.Label(where_frame, text="WHERE:").pack(side=LEFT, padx=5)
+            where_entry = tb.Entry(where_frame, width=50)
+            where_entry.pack(side=LEFT, padx=5, fill=X, expand=True)
+            tb.Label(where_frame, text="(e.g., id=1 or name='John')").pack(side=LEFT, padx=5)
+            
+            # SET values
+            set_frame = tb.LabelFrame(main_frame, text="SET Values", padding=10)
+            set_frame.pack(fill=BOTH, expand=True, pady=10)
+            
+            canvas = tb.Canvas(set_frame)
+            scrollbar = tb.Scrollbar(set_frame, orient=VERTICAL, command=canvas.yview)
+            scrollable_frame = tb.Frame(canvas)
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            scrollbar.pack(side=RIGHT, fill=Y)
+            canvas.pack(side=LEFT, fill=BOTH, expand=True)
+            
+            entries = {}
+            for col_name, col_type in columns:
+                field_frame = tb.Frame(scrollable_frame)
+                field_frame.pack(fill=X, pady=3, padx=10)
+                
+                tb.Label(field_frame, text=f"{col_name}:", 
+                        width=20, anchor=W).pack(side=LEFT, padx=5)
+                
+                entry = tb.Entry(field_frame, width=30)
+                entry.pack(side=LEFT, padx=5, fill=X, expand=True)
+                entries[col_name] = entry
+            
+            def do_update():
+                where = where_entry.get().strip()
+                if not where:
+                    messagebox.showwarning("Warning", "Please enter a WHERE condition")
+                    return
+                
+                updates = {}
+                for col_name, entry in entries.items():
+                    val = entry.get().strip()
+                    if val:
+                        updates[col_name] = val
+                
+                if not updates:
+                    messagebox.showwarning("Warning", "Please enter at least one value to update")
+                    return
+                
+                if operations.update_record(table, updates, where):
+                    messagebox.showinfo("Success", "Records updated successfully!")
+                    update_window.destroy()
+            
+            btn_frame = tb.Frame(main_frame)
+            btn_frame.pack(pady=10)
+            
+            tb.Button(btn_frame, text="Update", command=do_update,
+                     bootstyle=SUCCESS, width=12).pack(side=LEFT, padx=5)
+            tb.Button(btn_frame, text="Cancel", command=update_window.destroy,
+                     bootstyle=DANGER, width=12).pack(side=LEFT, padx=5)
+            
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+    
+    def delete_record(self):
+        """Delete records from a table"""
+        if not config.current_db:
+            messagebox.showwarning("Warning", "Please select a database first")
+            return
+        
+        table = tb.dialogs.Querybox.get_string(
+            prompt="Enter table name:",
+            title="Delete Record"
+        )
+        
+        if not table:
+            return
+        
+        delete_window = tb.Toplevel(self.root)
+        delete_window.title(f"Delete Records from '{table}'")
+        delete_window.geometry("500x200")
+        
+        main_frame = tb.Frame(delete_window, padding=20)
+        main_frame.pack(fill=BOTH, expand=True)
+        
+        tb.Label(main_frame, text=f"Delete records from '{table}'",
+                font=("Segoe UI", 12, "bold")).pack(pady=10)
+        
+        where_frame = tb.Frame(main_frame)
+        where_frame.pack(fill=X, pady=20)
+        
+        tb.Label(where_frame, text="WHERE:").pack(side=LEFT, padx=5)
+        where_entry = tb.Entry(where_frame, width=40)
+        where_entry.pack(side=LEFT, padx=5, fill=X, expand=True)
+        
+        tb.Label(main_frame, text="Example: id=1 or name='John'",
+                font=("Segoe UI", 9, "italic")).pack(pady=5)
+        
+        def do_delete():
+            where = where_entry.get().strip()
+            if not where:
+                messagebox.showwarning("Warning", "Please enter a WHERE condition")
+                return
+            
+            confirm = messagebox.askyesno(
+                "Confirm Delete",
+                f"Are you sure you want to delete records WHERE {where}?"
+            )
+            
+            if confirm:
+                if operations.delete_record(table, where):
+                    messagebox.showinfo("Success", "Records deleted successfully!")
+                    delete_window.destroy()
+        
+        btn_frame = tb.Frame(main_frame)
+        btn_frame.pack(pady=10)
+        
+        tb.Button(btn_frame, text="Delete", command=do_delete,
+                 bootstyle=DANGER, width=12).pack(side=LEFT, padx=5)
+        tb.Button(btn_frame, text="Cancel", command=delete_window.destroy,
+                 bootstyle=SECONDARY, width=12).pack(side=LEFT, padx=5)
+
 
 if __name__ == "__main__":
     root = tb.Window(themename="darkly")
     app = MySQLNavigator(root)
     root.mainloop()
-
-
-# File: config.py
-current_connection = None
-current_cursor = None
-current_db = None
-
-
-# File: db.py
-import mysql.connector
-import config
-
-def connect(host, user, password):
-    """Establish MySQL connection"""
-    try:
-        # Debug output
-        print(f"[DEBUG] Attempting connection:")
-        print(f"  Host: '{host}'")
-        print(f"  User: '{user}'")
-        print(f"  Password length: {len(password)} chars")
-        print(f"  Password empty: {password == ''}")
-        
-        # Handle empty password
-        if password == "":
-            print("[DEBUG] Connecting without password...")
-            config.current_connection = mysql.connector.connect(
-                host=host,
-                user=user
-            )
-        else:
-            print("[DEBUG] Connecting with password...")
-            config.current_connection = mysql.connector.connect(
-                host=host,
-                user=user,
-                password=password
-            )
-        
-        config.current_cursor = config.current_connection.cursor()
-        print("[DEBUG] Connection successful!")
-        return True, "Connected successfully to MySQL"
-    except mysql.connector.Error as err:
-        print(f"[DEBUG] MySQL Error: {err}")
-        print(f"[DEBUG] Error code: {err.errno}")
-        if err.errno == 1045:
-            return False, "Access denied. Check username and password."
-        elif err.errno == 2003:
-            return False, "Can't connect to MySQL server. Is it running?"
-        else:
-            return False, f"MySQL Error: {str(err)}"
-    except Exception as e:
-        print(f"[DEBUG] General error: {e}")
-        return False, str(e)
-
-def list_databases():
-    """Get all databases"""
-    if not config.current_cursor:
-        raise Exception("Not connected to MySQL")
-    
-    config.current_cursor.execute("SHOW DATABASES")
-    return [db[0] for db in config.current_cursor.fetchall()]
-
-def select_database(db_name):
-    """Select a database"""
-    if not config.current_cursor:
-        raise Exception("Not connected to MySQL")
-    
-    config.current_cursor.execute(f"USE `{db_name}`")
-    config.current_db = db_name
-
-def list_tables(db_name):
-    """Get all tables in a database"""
-    if not config.current_cursor:
-        raise Exception("Not connected to MySQL")
-    
-    # Temporarily use the database
-    config.current_cursor.execute(f"USE `{db_name}`")
-    config.current_cursor.execute("SHOW TABLES")
-    return [table[0] for table in config.current_cursor.fetchall()]
-
-
-# File: operations.py
-import config
-
-def list_tables():
-    """List all tables in current database"""
-    if not config.current_db:
-        raise Exception("No database selected")
-    
-    config.current_cursor.execute("SHOW TABLES")
-    return [t[0] for t in config.current_cursor.fetchall()]
-
-def truncate_table(table):
-    """Remove all records from table (reset auto-increment)"""
-    if not config.current_db:
-        raise Exception("No database selected")
-    
-    config.current_cursor.execute(f"TRUNCATE TABLE `{table}`")
-    config.current_connection.commit()
-
-def delete_all(table):
-    """Delete all records from table (keep auto-increment)"""
-    if not config.current_db:
-        raise Exception("No database selected")
-    
-    config.current_cursor.execute(f"DELETE FROM `{table}`")
-    config.current_connection.commit()
-
-def run_query(query):
-    """Execute a custom SQL query"""
-    if not config.current_db:
-        raise Exception("No database selected")
-    
-    config.current_cursor.execute(query)
