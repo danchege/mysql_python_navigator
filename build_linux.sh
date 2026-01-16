@@ -86,6 +86,21 @@ else
     echo "Building without custom icon"
 fi
 
+# Create a hook file for MySQL Connector
+echo "Creating PyInstaller hook for MySQL Connector..."
+cat > hook-mysql_connector.py << 'EOL'
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+datas = collect_data_files('mysql.connector')
+
+hiddenimports = collect_submodules('mysql.connector')
+hiddenimports.extend([
+    'mysql.connector.plugins.mysql_native_password',
+    'mysql.connector.plugins.caching_sha2_password',
+    'mysql.connector.plugins.mysql_clear_password',
+])
+EOL
+
 # Build with PyInstaller
 echo "[5/5] Building executable with PyInstaller..."
 pyinstaller --name="MySQL_Navigator" \
@@ -102,9 +117,12 @@ pyinstaller --name="MySQL_Navigator" \
     --hidden-import="ttkbootstrap" \
     --hidden-import="ttkthemes" \
     --hidden-import="mysql.connector" \
+    --hidden-import="mysql.connector.plugins.mysql_native_password" \
+    --hidden-import="mysql.connector.plugins.caching_sha2_password" \
     --hidden-import="cryptography" \
     --hidden-import="tkinterdnd2" \
     --additional-hooks-dir=. \
+    --additional-hooks-dir=$(pwd) \
     $ICON_PARAM \
     --clean \
     --noconfirm \

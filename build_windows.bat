@@ -93,7 +93,20 @@ if exist "icon.png" (
 )
 
 echo.
-echo [5/5] Building executable with PyInstaller...
+echo [5/5] Creating PyInstaller hook for MySQL Connector...
+echo from PyInstaller.utils.hooks import collect_data_files, collect_submodules > hook-mysql_connector.py
+echo. >> hook-mysql_connector.py
+echo datas = collect_data_files('mysql.connector') >> hook-mysql_connector.py
+echo. >> hook-mysql_connector.py
+echo hiddenimports = collect_submodules('mysql.connector') >> hook-mysql_connector.py
+echo hiddenimports.extend([ >> hook-mysql_connector.py
+echo     'mysql.connector.plugins.mysql_native_password', >> hook-mysql_connector.py
+echo     'mysql.connector.plugins.caching_sha2_password', >> hook-mysql_connector.py
+echo     'mysql.connector.plugins.mysql_clear_password', >> hook-mysql_connector.py
+echo ]) >> hook-mysql_connector.py
+
+echo.
+echo [6/6] Building executable with PyInstaller...
 
 REM Build with PyInstaller
 pyinstaller --name="MySQL_Navigator" ^
@@ -110,9 +123,12 @@ pyinstaller --name="MySQL_Navigator" ^
     --hidden-import="ttkbootstrap" ^
     --hidden-import="ttkthemes" ^
     --hidden-import="mysql.connector" ^
+    --hidden-import="mysql.connector.plugins.mysql_native_password" ^
+    --hidden-import="mysql.connector.plugins.caching_sha2_password" ^
     --hidden-import="cryptography" ^
     --hidden-import="tkinterdnd2" ^
     --additional-hooks-dir=. ^
+    --additional-hooks-dir=%~dp0 ^
     %ICON_PARAM% ^
     --clean ^
     --noconfirm ^
