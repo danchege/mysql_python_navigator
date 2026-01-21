@@ -154,10 +154,17 @@ def run_query(query):
         return None
 
 # CRUD Operations
+def quote_identifier(identifier):
+    """Safely quote MySQL identifiers like table or column names"""
+    # Escape backticks by doubling them
+    escaped = identifier.replace('`', '``')
+    return f"`{escaped}`"
+
 def get_table_columns(table):
     """Get column names and types for a table"""
     try:
-        config.current_cursor.execute(f"DESCRIBE `{table}`")
+        safe_table = quote_identifier(table)
+        config.current_cursor.execute(f"DESCRIBE {safe_table}")
         result = config.current_cursor.fetchall()
         # Returns list of tuples: (column_name, column_type)
         return [(row[0], row[1]) for row in result]

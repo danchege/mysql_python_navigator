@@ -11,7 +11,9 @@ def connect(host, user, password, port=3306):
             port=port,
             user=user,
             password=password,
-            connection_timeout=5
+            connection_timeout=5,
+            charset='utf8mb4',
+            use_unicode=True
         )
         if config.current_connection.is_connected():
             db_info = config.current_connection.get_server_info()
@@ -45,11 +47,16 @@ def list_databases():
 
 def select_database(db_name):
     """Select/use a specific database"""
-    if not config.current_cursor:
-        raise Exception("Not connected to MySQL")
-    
-    config.current_cursor.execute(f"USE `{db_name}`")
-    config.current_db = db_name
+    try:
+        config.current_cursor.execute(f"USE `{db_name}`")
+        config.current_connection.database = db_name
+        # Set the character set for the current connection
+        config.current_cursor.execute("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci")
+        config.current_db = db_name
+        return True
+    except Exception as e:
+        print(f"Error selecting database: {e}")
+        return False
 
 def list_tables(db_name=None):
     """Get list of tables in a database"""
