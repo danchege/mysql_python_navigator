@@ -329,93 +329,114 @@ class MySQLNavigator:
         """Show right-click context menu for database/table"""
         # Select the item under cursor
         item = self.tree.identify_row(event.y)
-        if item:
-            self.tree.selection_set(item)
+        if not item:
+            return "break"
             
-            # Create context menu
-            context_menu = Menu(self.root, tearoff=0)
+        self.tree.selection_set(item)
+        self.tree.focus(item)
+        
+        # Create context menu
+        context_menu = Menu(self.root, tearoff=0)
+        
+        parent = self.tree.parent(item)
+        
+        def close_menu():
+            """Close the context menu and clean up"""
+            context_menu.grab_release()
+            context_menu.unpost()
+            context_menu.destroy()
+        
+        if parent == '':  # It's a database
+            db_name = self.strip_emojis(item)
+            context_menu.add_command(
+                label=f"👁️ Preview Database '{db_name}'",
+                command=lambda db=db_name: [self.preview_database(db), close_menu()]
+            )
+            context_menu.add_separator()
+            context_menu.add_command(
+                label="📋 Show Tables",
+                command=lambda db=db_name: [self.show_tables_from_context(db), close_menu()]
+            )
+            context_menu.add_command(
+                label="➕ Create Table",
+                command=lambda db=db_name: [self.create_table_from_context(db), close_menu()]
+            )
+            context_menu.add_separator()
+            context_menu.add_command(
+                label="💾 Backup Database",
+                command=lambda db=db_name: [self.backup_database_from_context(db), close_menu()]
+            )
+            context_menu.add_command(
+                label="📤 Export Database",
+                command=lambda db=db_name: [self.export_database_from_context(db), close_menu()]
+            )
+            context_menu.add_separator()
+            context_menu.add_command(
+                label="🗑️ Drop Database",
+                command=lambda db=db_name: [self.drop_database_from_context(db), close_menu()]
+            )
+        else:  # It's a table
+            table_text = self.tree.item(item)['text']
+            table_name = table_text.replace('📄 ', '').strip()
+            db_name = parent.replace('📁 ', '').strip()
             
-            parent = self.tree.parent(item)
-            
-            if parent == '':  # It's a database
-                # Extract database name (remove emoji if present)
-                db_name = item.replace('📁 ', '')
+            if table_name not in ('Loading...', 'No tables'):
                 context_menu.add_command(
-                    label=f"👁️ Preview Database '{db_name}'",
-                    command=lambda: self.preview_database(db_name)
+                    label=f"👁️ Preview Table '{table_name}'",
+                    command=lambda db=db_name, tbl=table_name: [self.preview_table(db, tbl), close_menu()]
                 )
                 context_menu.add_separator()
                 context_menu.add_command(
-                    label="📋 Show Tables",
-                    command=lambda: self.show_tables_from_context(db_name)
+                    label="📊 View All Data",
+                    command=lambda db=db_name, tbl=table_name: [self.view_table_data_from_context(db, tbl), close_menu()]
                 )
                 context_menu.add_command(
-                    label="➕ Create Table",
-                    command=lambda: self.create_table_from_context(db_name)
+                    label="🔍 View Structure",
+                    command=lambda db=db_name, tbl=table_name: [self.view_table_structure(db, tbl), close_menu()]
                 )
                 context_menu.add_separator()
                 context_menu.add_command(
-                    label="💾 Backup Database",
-                    command=lambda: self.backup_database_from_context(db_name)
+                    label="➕ Insert Record",
+                    command=lambda db=db_name, tbl=table_name: [self.insert_record_from_context(db, tbl), close_menu()]
                 )
                 context_menu.add_command(
-                    label="📤 Export Database",
-                    command=lambda: self.export_database_from_context(db_name)
+                    label="✏️ Update Records",
+                    command=lambda db=db_name, tbl=table_name: [self.update_record_from_context(db, tbl), close_menu()]
+                )
+                context_menu.add_command(
+                    label="🗑️ Delete Records",
+                    command=lambda db=db_name, tbl=table_name: [self.delete_record_from_context(db, tbl), close_menu()]
                 )
                 context_menu.add_separator()
                 context_menu.add_command(
-                    label="🗑️ Drop Database",
-                    command=lambda: self.drop_database_from_context(db_name)
+                    label="🗑️ Truncate Table",
+                    command=lambda db=db_name, tbl=table_name: [self.truncate_table_from_context(db, tbl), close_menu()]
                 )
-            else:  # It's a table
-                # Extract table name (remove emoji if present)
-                table_text = self.tree.item(item)['text']
-                table_name = table_text.replace('📄 ', '').strip()
-                # Extract database name (remove emoji if present)
-                db_name = parent.replace('📁 ', '').strip()
-                
-                if table_name != 'Loading...' and table_name != 'No tables':
-                    context_menu.add_command(
-                        label=f"👁️ Preview Table '{table_name}'",
-                        command=lambda: self.preview_table(db_name, table_name)
-                    )
-                    context_menu.add_separator()
-                    context_menu.add_command(
-                        label="📊 View All Data",
-                        command=lambda: self.view_table_data_from_context(db_name, table_name)
-                    )
-                    context_menu.add_command(
-                        label="🔍 View Structure",
-                        command=lambda: self.view_table_structure(db_name, table_name)
-                    )
-                    context_menu.add_separator()
-                    context_menu.add_command(
-                        label="➕ Insert Record",
-                        command=lambda: self.insert_record_from_context(db_name, table_name)
-                    )
-                    context_menu.add_command(
-                        label="✏️ Update Records",
-                        command=lambda: self.update_record_from_context(db_name, table_name)
-                    )
-                    context_menu.add_command(
-                        label="🗑️ Delete Records",
-                        command=lambda: self.delete_record_from_context(db_name, table_name)
-                    )
-                    context_menu.add_separator()
-                    context_menu.add_command(
-                        label="🗑️ Truncate Table",
-                        command=lambda: self.truncate_table_from_context(db_name, table_name)
-                    )
-                    context_menu.add_command(
-                        label="❌ Drop Table",
-                        command=lambda: self.drop_table_from_context(db_name, table_name)
-                    )
+                context_menu.add_command(
+                    label="❌ Drop Table",
+                    command=lambda db=db_name, tbl=table_name: [self.drop_table_from_context(db, tbl), close_menu()]
+                )
+        
+        # Display the menu and prevent default behavior
+        try:
+            context_menu.tk_popup(event.x_root, event.y_root)
+            context_menu.focus_set()  # Ensure the menu has focus
+            context_menu.grab_set()   # Ensure the menu captures all events
             
-            # Display the menu
-            try:
-                context_menu.tk_popup(event.x_root, event.y_root)
-            finally:
-                context_menu.grab_release()
+            # Close menu when clicking outside or pressing Escape
+            def on_click(e):
+                if e.widget not in (context_menu, self.tree):
+                    close_menu()
+            
+            self.root.bind("<Button-1>", on_click, add='+')
+            self.root.bind("<Escape>", lambda e: close_menu(), add='+')
+            
+        except Exception as e:
+            print(f"Error showing context menu: {e}")
+            if context_menu.winfo_exists():
+                close_menu()
+        
+        return "break"  # Prevent default context menu
     
     def preview_database(self, db_name):
         """Preview database information in the main window"""
@@ -1135,11 +1156,9 @@ class MySQLNavigator:
                         command=lambda: self.drop_table_from_context(db_name, table_name)
                     )
             
-            # Display the menu
-            try:
-                context_menu.tk_popup(event.x_root, event.y_root)
-            finally:
-                context_menu.grab_release()
+            # Display the menu - remove grab_release to make menu persistent
+            context_menu.tk_popup(event.x_root, event.y_root)
+            # Menu will stay open until user clicks elsewhere or selects an option
     
     def preview_database(self, db_name):
         """Preview database information in the main window"""
@@ -2566,49 +2585,101 @@ class MySQLNavigator:
         btn_frame = tb.Frame(main_frame)
         btn_frame.pack(pady=10)
         
-        tb.Button(btn_frame, text="Delete", command=do_delete,
-                 bootstyle=DANGER, width=12).pack(side=LEFT, padx=5)
-        tb.Button(btn_frame, text="Cancel", command=delete_window.destroy,
-                 bootstyle=SECONDARY, width=12).pack(side=LEFT, padx=5)
-
+        tb.Button(btn_frame, text="Delete", command=do_delete, bootstyle="danger").pack(side=LEFT, padx=5)
+        tb.Button(btn_frame, text="Cancel", command=delete_window.destroy, bootstyle="secondary").pack(side=LEFT, padx=5)
     def show_context_menu(self, event):
+        """Show right-click context menu for database/table"""
+        # Select the item under cursor
         item = self.tree.identify_row(event.y)
         if item:
             self.tree.selection_set(item)
+            
+            # Create context menu with tearoff=0 to prevent it from being torn off
             context_menu = Menu(self.root, tearoff=0)
+            
             parent = self.tree.parent(item)
-            if parent == '':
-                db_name = item
-                context_menu.add_command(label=f"Preview Database '{db_name}'", command=lambda: self.preview_database(db_name))
+            
+            if parent == '':  # It's a database
+                # Extract database name (remove emoji if present)
+                db_name = self.strip_emojis(item)
+                context_menu.add_command(
+                    label=f"👁️ Preview Database '{db_name}'",
+                    command=lambda: self.preview_database(db_name)
+                )
                 context_menu.add_separator()
-                context_menu.add_command(label="Show Tables", command=lambda: self.show_tables_from_context(db_name))
-                context_menu.add_command(label="Create Table", command=lambda: self.create_table_from_context(db_name))
+                context_menu.add_command(
+                    label="📋 Show Tables",
+                    command=lambda: self.show_tables_from_context(db_name)
+                )
+                context_menu.add_command(
+                    label="➕ Create Table",
+                    command=lambda: self.create_table_from_context(db_name)
+                )
                 context_menu.add_separator()
-                context_menu.add_command(label="Backup Database", command=lambda: self.backup_database_from_context(db_name))
-                context_menu.add_command(label="Export Database", command=lambda: self.export_database_from_context(db_name))
+                context_menu.add_command(
+                    label="💾 Backup Database",
+                    command=lambda: self.backup_database_from_context(db_name)
+                )
+                context_menu.add_command(
+                    label="📤 Export Database",
+                    command=lambda: self.export_database_from_context(db_name)
+                )
                 context_menu.add_separator()
-                context_menu.add_command(label="Drop Database", command=lambda: self.drop_database_from_context(db_name))
-            else:
-                table_name = self.tree.item(item)['text'].replace(' ', '')
-                db_name = parent
+                context_menu.add_command(
+                    label="🗑️ Drop Database",
+                    command=lambda: self.drop_database_from_context(db_name)
+                )
+            else:  # It's a table
+                # Extract table name (remove emoji if present)
+                table_text = self.tree.item(item)['text']
+                table_name = self.strip_emojis(table_text)
+                # Extract database name (remove emoji if present)
+                db_name = self.strip_emojis(parent)
+                
                 if table_name not in ['Loading...', 'No tables']:
-                    context_menu.add_command(label=f"Preview Table '{table_name}'", command=lambda: self.preview_table(db_name, table_name))
+                    context_menu.add_command(
+                        label=f"👁️ Preview Table '{table_name}'",
+                        command=lambda: self.preview_table(db_name, table_name)
+                    )
                     context_menu.add_separator()
-                    context_menu.add_command(label="View All Data", command=lambda: self.view_table_data_from_context(db_name, table_name))
-                    context_menu.add_command(label="View Structure", command=lambda: self.view_table_structure(db_name, table_name))
+                    context_menu.add_command(
+                        label="📊 View All Data",
+                        command=lambda: self.view_table_data_from_context(db_name, table_name)
+                    )
+                    context_menu.add_command(
+                        label="🔍 View Structure",
+                        command=lambda: self.view_table_structure(db_name, table_name)
+                    )
                     context_menu.add_separator()
-                    context_menu.add_command(label="Insert Record", command=lambda: self.insert_record_from_context(db_name, table_name))
-                    context_menu.add_command(label="Update Records", command=lambda: self.update_record_from_context(db_name, table_name))
-                    context_menu.add_command(label="Delete Records", command=lambda: self.delete_record_from_context(db_name, table_name))
+                    context_menu.add_command(
+                        label="➕ Insert Record",
+                        command=lambda: self.insert_record_from_context(db_name, table_name)
+                    )
+                    context_menu.add_command(
+                        label="✏️ Update Records",
+                        command=lambda: self.update_record_from_context(db_name, table_name)
+                    )
+                    context_menu.add_command(
+                        label="🗑️ Delete Records",
+                        command=lambda: self.delete_record_from_context(db_name, table_name)
+                    )
                     context_menu.add_separator()
-                    context_menu.add_command(label="Truncate Table", command=lambda: self.truncate_table_from_context(db_name, table_name))
-                    context_menu.add_command(label="Drop Table", command=lambda: self.drop_table_from_context(db_name, table_name))
-            try:
-                context_menu.tk_popup(event.x_root, event.y_root)
-            finally:
-                context_menu.grab_release()
+                    context_menu.add_command(
+                        label="🗑️ Truncate Table",
+                        command=lambda: self.truncate_table_from_context(db_name, table_name)
+                    )
+                    context_menu.add_command(
+                        label="❌ Drop Table",
+                        command=lambda: self.drop_table_from_context(db_name, table_name)
+                    )
+            
+            # Display the menu - REMOVED finally block that was calling grab_release
+            context_menu.tk_popup(event.x_root, event.y_root)
+            # Menu will stay open until user clicks elsewhere or selects an option
 
     def strip_emojis(self, text):
+        """Remove emojis and extra whitespace from text"""
+        import re
         emoji_pattern = re.compile(
             "[\U0001F600-\U0001F64F"  # emoticons
             "\U0001F300-\U0001F5FF"  # symbols & pictographs
@@ -2617,12 +2688,11 @@ class MySQLNavigator:
             "\U00002702-\U000027B0"  # dingbats
             "\U000024C2-\U0001F251"
             "]+", flags=re.UNICODE)
-        return emoji_pattern.sub(r'', text)
+        return emoji_pattern.sub('', text).strip()
 
     def preview_database(self, db_name):
+        """Preview database information in the main window"""
         try:
-            config.current_db = db_name
-            db.select_database(db_name)
             if self.preview_window and self.preview_window.winfo_exists():
                 self.preview_window.destroy()
             self.preview_window = tb.LabelFrame(self.left_pane, text=f"Preview: {db_name}", padding=10)
@@ -2649,9 +2719,183 @@ class MySQLNavigator:
             messagebox.showerror("Error", f"Failed to preview database: {str(e)}")
 
     def preview_table(self, db_name, table_name):
+        """Preview table structure and sample data"""
         try:
+            # Clean names
             display_table_name = self.strip_emojis(table_name)
+            db_name = self.strip_emojis(db_name)
+            
+            # Set current database
             config.current_db = db_name
+            if not db.select_database(db_name):
+                raise Exception(f"Failed to select database: {db_name}")
+            
+            # Close existing preview window if open
+            if self.preview_window and self.preview_window.winfo_exists():
+                self.preview_window.destroy()
+            
+            # Create preview panel
+            self.preview_window = tb.LabelFrame(
+                self.left_pane, 
+                text=f"Preview: {db_name}.{display_table_name}", 
+                padding=10
+            )
+            self.preview_window.pack(fill=BOTH, expand=False, pady=10)
+            
+            # Create main container with fixed height
+            main_container = tb.Frame(self.preview_window)
+            main_container.pack(fill=BOTH, expand=True)
+            
+            # Create canvas for scrolling entire preview
+            preview_canvas = tb.Canvas(main_container, height=400)
+            preview_scrollbar = tb.Scrollbar(main_container, orient=VERTICAL, command=preview_canvas.yview)
+            preview_content = tb.Frame(preview_canvas)
+            
+            preview_canvas.configure(yscrollcommand=preview_scrollbar.set)
+            
+            # Get table info
+            columns = operations.get_table_columns(table_name)
+            config.current_cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
+            row_count_result = config.current_cursor.fetchone()
+            row_count = row_count_result[0] if row_count_result else 0
+            
+            # Display info
+            tb.Label(preview_content, text=f"📄 Table: {table_name}", 
+                    font=("Segoe UI", 11, "bold")).pack(anchor=W, pady=2)
+            tb.Label(preview_content, text=f"📊 Total Rows: {row_count}", 
+                    font=("Segoe UI", 10)).pack(anchor=W, pady=2)
+            tb.Label(preview_content, text=f"📋 Columns: {len(columns)}", 
+                    font=("Segoe UI", 10)).pack(anchor=W, pady=2)
+            
+            # Show structure
+            tb.Label(preview_content, text="Structure:", 
+                    font=("Segoe UI", 10, "bold")).pack(anchor=W, pady=(10, 5))
+            
+            struct_frame = tb.Frame(preview_content)
+            struct_frame.pack(fill=X, pady=5)
+            
+            # Get full column info
+            config.current_cursor.execute(f"SHOW FULL COLUMNS FROM `{table_name}`")
+            full_columns = config.current_cursor.fetchall()
+            
+            # Create tree for structure
+            struct_tree = ttk.Treeview(
+                struct_frame, 
+                columns=('Type', 'Null', 'Key', 'Default'), 
+                show='tree headings', 
+                height=min(8, len(full_columns))
+            )
+            
+            struct_tree.heading('#0', text='Column')
+            struct_tree.heading('Type', text='Type')
+            struct_tree.heading('Null', text='Null')
+            struct_tree.heading('Key', text='Key')
+            struct_tree.heading('Default', text='Default')
+            
+            struct_tree.column('#0', width=120)
+            struct_tree.column('Type', width=100)
+            struct_tree.column('Null', width=50)
+            struct_tree.column('Key', width=50)
+            struct_tree.column('Default', width=80)
+            
+            for col in full_columns:
+                col_name = col[0]
+                col_type = col[1]
+                is_null = col[2]
+                col_key = col[3] if col[3] else ''
+                col_default = str(col[4]) if col[4] is not None else 'NULL'
+                
+                struct_tree.insert('', 'end', text=col_name, 
+                                 values=(col_type, is_null, col_key, col_default))
+            
+            struct_tree.pack(fill=X)
+            
+            # Show sample data with scrollbars
+            if row_count > 0:
+                tb.Label(preview_content, 
+                        text=f"Sample Data (First {min(5, row_count)} rows):", 
+                        font=("Segoe UI", 10, "bold")
+                       ).pack(anchor=W, pady=(15, 5))
+                
+                # Create frame for data with both scrollbars
+                data_outer_frame = tb.Frame(preview_content)
+                data_outer_frame.pack(fill=BOTH, expand=True, pady=5)
+                
+                try:
+                    config.current_cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 5")
+                    sample_data = config.current_cursor.fetchall()
+                    col_names = [desc[0] for desc in config.current_cursor.description]
+                    
+                    # Create Treeview with both scrollbars
+                    data_tree = ttk.Treeview(
+                        data_outer_frame, 
+                        columns=col_names, 
+                        show="headings", 
+                        height=6  # Fixed height to show ~5 rows
+                    )
+                    
+                    # Configure columns
+                    for col in col_names:
+                        data_tree.heading(col, text=col)
+                        data_tree.column(col, width=120, minwidth=80)
+                    
+                    # Insert data
+                    for row in sample_data:
+                        data_tree.insert('', 'end', values=row)
+                    
+                    # Add scrollbars
+                    v_scroll = tb.Scrollbar(data_outer_frame, orient=VERTICAL, command=data_tree.yview)
+                    h_scroll = tb.Scrollbar(data_outer_frame, orient=HORIZONTAL, command=data_tree.xview)
+                    data_tree.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
+                    
+                    # Grid layout for proper scrollbar positioning
+                    data_tree.grid(row=0, column=0, sticky='nsew')
+                    v_scroll.grid(row=0, column=1, sticky='ns')
+                    h_scroll.grid(row=1, column=0, sticky='ew')
+                    
+                    # Configure grid weights
+                    data_outer_frame.grid_rowconfigure(0, weight=1)
+                    data_outer_frame.grid_columnconfigure(0, weight=1)
+                    
+                except Exception as data_err:
+                    tb.Label(preview_content, 
+                            text=f"Error loading sample data: {str(data_err)}", 
+                            bootstyle="danger").pack(pady=10)
+            
+            # Buttons at bottom
+            btn_frame = tb.Frame(preview_content)
+            btn_frame.pack(fill=X, pady=(15, 5))
+            
+            tb.Button(btn_frame, text="📊 View Full Table", 
+                     command=lambda: self.view_table_data_from_context(db_name, table_name),
+                     bootstyle="primary-outline"
+                    ).pack(side=LEFT, padx=5)
+            
+            tb.Button(btn_frame, text="✖ Close Preview", 
+                     command=self.close_preview, 
+                     bootstyle="secondary-outline"
+                    ).pack(side=RIGHT, padx=5)
+            
+            # Pack canvas and scrollbar
+            preview_canvas.create_window((0, 0), window=preview_content, anchor="nw")
+            preview_scrollbar.pack(side=RIGHT, fill=Y)
+            preview_canvas.pack(side=LEFT, fill=BOTH, expand=True)
+            
+            # Update scroll region
+            def update_scroll_region(event=None):
+                preview_canvas.configure(scrollregion=preview_canvas.bbox("all"))
+            
+            preview_content.bind('<Configure>', update_scroll_region)
+            
+            # Enable mousewheel scrolling
+            def on_mousewheel(event):
+                preview_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            
+            preview_canvas.bind_all("<MouseWheel>", on_mousewheel)
+            
+            # Initial scroll region update
+            self.root.update_idletasks()
+            preview_canvas.config(scrollregion=preview_canvas.bbox("all"))
             if not db.select_database(db_name):
                 raise Exception(f"Failed to select database: {db_name}")
             
